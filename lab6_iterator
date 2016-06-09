@@ -1,0 +1,214 @@
+
+#include "iostream"
+#include <cmath>
+using namespace std;
+
+class Z2 {
+protected:
+	int num;
+public:
+	Z2() {};
+	Z2(int print_num) {
+		num = print_num;
+	}
+	//~Z2();
+	Z2 operator+(Z2& num2) {
+		int a;
+		a = (num + num2.num) % 2;
+		Z2 result(a);
+		return result;
+	}
+	Z2 operator*(Z2& num2) {
+		int a;
+		a = num * num2.num;
+		Z2 result(a);
+		return result;
+	};
+	friend istream &operator>>(istream &stream, Z2 &obj) {
+
+		stream >> obj.num;
+		return stream;
+	}
+	friend ostream &operator<<(ostream &stream, Z2 obj) {
+		stream << obj.num << " ";
+		return stream;
+	}
+};
+
+template<class Type>
+class Iterator;
+
+template <class Type>
+class Matrix {
+protected:
+	int n; //строки
+	int m; //столбцы
+	Type** mas;
+
+public:
+	typedef Iterator<Type> iterator;
+	Matrix();
+	Matrix(int strok, int stolb);
+	Matrix<Type> operator*(Matrix& mat);
+	Matrix<Type> operator+(Matrix& mat);
+	Type& operator ()(int i) {
+		return mas[ceil(i/m)][i%m];
+	}	
+	Matrix(int strok, int stolb, int  t);	
+	iterator begin() {
+		return iterator(*mas, 0);
+	}
+	iterator end() {
+		return iterator(*mas + n*m, n*m);
+	}
+	template <class T>
+	friend ostream &operator<<(ostream &, Matrix<T>&);
+};
+template <class Type>
+Matrix<Type>::Matrix(int strok, int stolb) {
+	n = strok;
+	m = stolb;
+	mas = new Type *[m];
+	for (int i = 0; i < m; i++) {
+		mas[i] = new Type[n];
+	}
+}
+template <class Type>
+Matrix<Type>::Matrix(int strok, int stolb,int  t) {
+	n = strok;
+	m = stolb;
+	mas = new Type *[m];
+	for (int i = 0; i < m; i++) {
+		mas[i] = new Type[n];
+	}
+	cout << "Enter elements of the matrix : ";
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < m; j++) {
+			cin >> mas[i][j];
+		}
+	}
+}
+template <class Type>
+Matrix<Type>::Matrix() {
+	n = 1;
+	m = 1;
+	mas = new Type*[m];
+	mas[0] = new Type[n];
+}
+template <class Type>
+Matrix<Type> Matrix<Type>::operator*(Matrix& N) {
+	if (m != N.m) {
+		throw "Размеры матриц несоответсвуют умножению матриц ";
+	}
+	Matrix<Type> matr(n, N.m);
+	Type A(0);
+	for (int i = 0; i < n; i++)
+		for (int j = 0; j < N.m; j++) {
+			matr.mas[i][j] = A;
+			for (int k = 0; k < m; k++)
+				matr.mas[i][j] = matr.mas[i][j] + mas[i][k] * N.mas[k][j];
+		}
+	return matr;
+}
+template <class  Type>
+Matrix<Type> Matrix<Type>::operator+(Matrix& N) {
+	Matrix<Type> Q(n, m);
+	for (int i = 0; i < n; ++i) {
+		Q.mas[i] = new Type[m];
+		for (int j = 0; j < m; ++j) {
+			Q.mas[i][j] = mas[i][j] + N.mas[i][j];
+		}
+	}
+	return Q;
+}
+
+template <class Type>
+ostream& operator << (ostream& stream, Matrix<Type>& obj) {
+	for (int i = 0; i < obj.n; ++i) {
+		for (int j = 0; j < obj.m; ++j) {
+			cout << obj.mas[i][j];
+		}
+		cout << endl;
+	}
+	return stream;
+}
+
+template <class Type>
+class Iterator {
+	friend class Matrix<Type>;
+	Type* mData;
+	size_t mCount;
+public:
+	Iterator() :mData(NULL), mCount(NULL) {};
+	Iterator(const Iterator& it) : mData(it.mData), mCount(it.mCount) {};
+	Iterator(Type* curr, size_t count):mData(curr), mCount(count) {}
+	bool operator==(const Iterator &it) const
+	{
+		return (mData == it.mData);
+	}
+	bool operator!=(const Iterator &it) const
+	{
+		return !(it == *this);
+	}
+
+	Iterator& operator++()
+	{
+		//++mCount;
+		//mData = mData(mCount);
+		//Iterator* tmp = new Iterator(mData, mCount);
+		//return tmp;
+		++mData;
+		return *this;
+	}
+	Iterator& operator--()
+	{
+		mCount--; return *this;
+	}
+	Type& operator*() const
+	{
+		return *mData;
+	}
+	Type* operator->() const
+	{
+		return &mData;
+	}
+};
+
+
+int main()
+{
+	/*int n1, m1, n2, m2;
+
+	cout << "Enter the number of row and columns" << endl;
+	cin >> n1 >> m1;
+	Matrix <Z2> matr1(n1, m1, 0);
+	cout << " your matrix" << endl;
+	cout << matr1;
+	cout << "Enter the number of row and columns" << endl;
+	cin >> n2 >> m2;
+	Matrix <Z2> matr2(n2, m2, 0);
+	Matrix <Z2> matr3(n2, m2);
+
+	cout<< matr1 + matr2;
+	cout << matr1 * matr2;
+	//cout << matr3;
+	cout << "iter" << endl;
+	*/
+	Matrix<int> arr(3,3, 0);
+	Iterator<int> it;
+	cout << "iter" << endl;
+	it = arr.begin();
+	cout << *it;
+	++it;
+	cout << *it;
+	++it;
+	cout << *it;
+	//for (it = arr.begin(); it != arr.end(); ++it) {
+	//	cout << *it << endl;
+	//}
+	
+	system("pause");
+
+	return 0;
+}
+
