@@ -1,0 +1,131 @@
+#include <iostream>
+#include <boost/asio.hpp>
+#include <thread>
+#include <functional>
+#include <string>
+#include <boost/system/error_code.hpp>
+
+using namespace boost::asio;
+using namespace std;
+
+class Service {
+public:
+    Service(){}
+    void HandleClient(ip::tcp::socket& sock); // send-receive
+    std::string ReadStreamFromSocket(ip::tcp::socket& sock){
+        boost::asio::streambuf b;
+        std::istream stream(&b);
+        read_until(sock, b, '\n');
+        string answer;
+        stream >> answer;
+        return answer;
+    }
+};
+
+void Service::HandleClient(ip::tcp::socket &sock) {
+    vector<string> questions, answers;
+    questions.push_back("name?\n");
+    questions.push_back("surename?\n");
+
+    for (auto q: questions){
+        write(sock, buffer(q));
+        answers.push_back(ReadStreamFromSocket(sock));
+    }
+    string exit = "Hello, ";
+    exit += answers[0] +" "+ answers[1] + "\n";
+    write(sock, buffer(exit));
+    sock.close();
+}
+
+
+class Acceptor {
+public:
+    Acceptor(io_service&ios, unsigned short port_num);
+    void Accept(); // accept & do handle client
+    void Start();
+private:
+    io_service& m_ios;
+    ip::tcp::acceptor m_acceptor;
+
+    void InitAccept(){
+        auto sock = make_shared<ip::tcp::socket> (m_ios);
+        auto endp = make_shared<ip::tcp::endpoint> ();
+
+        m_acceptor.async_accept(*sock,*endp, [=](const boost::system::error_code& er) {OnAccept(sock, er);} );
+    }
+
+    void OnAccept (shared_ptr<ip::tcp::socket> sock, const boost::system::error_code& er){
+        if (er) {
+            cout << "Error!" <<endl;
+            return;
+        }
+
+        std::cout<<"Accept"<<endl;
+        InitAccept();
+        Service s(sock);
+        s.StartHandling()
+    }
+};
+
+Acceptor::Acceptor(io_service&ios, unsigned short port_num):m_ios(ios), m_acceptor(ios)
+{
+    ip::address_v4 a4(ip::address_v4::any());
+    ip::tcp::endpoint ep(a4, port_num);
+    m_acceptor=ip::tcp::acceptor(ios, ep);
+}
+void Acceptor::Start() {
+    InitAccept();
+}
+void Acceptor::Accept() {
+    Service Serv;
+    ip::tcp::socket sock(m_ios);
+    ip::tcp::endpoint endp;
+    m_acceptor.accept(sock, endp);
+    Serv.HandleClient(sock);
+    std::cout << "Connection accepted" << std::endl;
+}
+
+class Server {
+public:
+    Server();
+    void Start(unsigned short port_num); // start thread with Run
+    void Stop(); // stop thread
+private:
+    void Run(unsigned short port_num); // cycle accept
+    std::unique_ptr<std::thread>m_thread;
+    std::atomic<bool> m_stop;
+    io_service m_ios;
+};
+
+void Server::Run(unsigned short port_num){
+    Acceptor acc(m_ios, port_num);
+    acc.Start();
+    m_ios.run();
+
+}
+
+void Server::Start(unsigned short port_num){
+    m_stop = false;
+    thread t(&Server::Run, this, port_num);
+    m_thread.reset(new thread(move(t)));
+};
+
+void Server::Stop(){
+    m_ios.stop();
+    m_stop = true;
+    m_thread -> join();
+}
+
+Server::Server() {
+    m_stop = true;
+}
+
+
+int main() {
+    io_service ios;
+    Server S;
+    S.Start(8067);
+    this_thread::sleep_for(chrono::seconds(50));
+    S.Stop();
+    return 0;
+}
