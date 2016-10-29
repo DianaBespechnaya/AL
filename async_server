@@ -1,0 +1,199 @@
+#include <iostream>
+#include <boost/asio.hpp>
+#include <thread>
+#include <chrono>
+#include <string>
+#include <cstdlib>
+
+using namespace boost::asio;
+using namespace std;
+
+class Service {
+public:
+    Service(){}
+    string readStrFromSock(ip::tcp::socket& sock){
+        boost::asio::streambuf b;
+        std::istream stream(&b);
+        read_until(sock, b, '\n');
+        std::string answer;
+        stream >> answer;
+        return answer;
+    }
+    Service(std::shared_ptr<ip::tcp::socket> _sock): m_sock(_sock){
+
+    }
+    void HandleClient(ip::tcp::socket& sock) { // send-receive
+
+        vector<std::string> answers;
+        vector<std::string> questions;
+        questions.push_back("name?\n");
+        questions.push_back("surename?\n");
+        for (auto q: questions){
+            write(sock, buffer(q));
+            string answer = readStrFromSock(sock);
+            answers.push_back(answer);
+        }
+        string exit = "Hello, ";
+        exit += answers[0] + " " +answers[1] + "\n";
+        write(sock, buffer(exit));
+        cout << exit << endl;
+        sock.close();
+    }
+
+    void InitHandling(){
+        std::string str="Hello! Your name?";
+        async_write(*m_sock, buffer(str), [=](const boost::system::error_code& ec,  size_t bytesTransf){
+            this->OnSend(ec, bytesTransf);
+        });
+    }
+
+    void OnSend(const boost::system::error_code& ec, size_t bytesTransf) {
+        if(ec){
+            std::cout << "OnSend Error";
+            return;
+        }
+        std::cout << "sent"<<std::endl;
+        //this->InitHandling();
+        //stopHandling();
+        StartRecieving();
+        //m_sock->close();
+    }
+
+    void StartRecieving() {
+        //boost::asio::streambuf b;
+        auto buf = make_shared<boost::asio::streambuf>();
+
+        async_read_until(*m_sock, *buf, '\n', [=](const boost::system::error_code& ec,
+                                                  size_t bytesTransf){
+            this->OnRecieved(ec, bytesTransf, buf);
+        });
+    }
+
+    void OnRecieved(const boost::system::error_code& ec, size_t bytesTransf,
+    std::shared_ptr<boost::asio::streambuf> buf) {
+        if(ec){
+            std::cout << "onRecievedError";
+            return;
+        }
+
+        std::istream stream(buf.get());
+        std::string answer;
+        stream >> answer;
+        std::cout << "Data recieve" << answer << std::endl;
+        stopHandling();
+    }
+
+    void stopHandling() {
+        m_sock->close();
+        delete this;
+    }
+
+private:
+    std::shared_ptr <ip::tcp::socket> m_sock;
+};
+
+class Acceptor {
+public:
+    Acceptor(io_service &ios)
+            : m_ios(ios)
+            , m_acceptor(ios)
+    {
+        unsigned short port_num=5059;
+        ip::address_v4 a4(ip::address_v4::any());
+        //ip::tcp::endpoint ep(a4,port_num);
+        while(true) {
+            port_num += 1;
+            try {
+                ip::tcp::endpoint ep(a4,port_num);
+                m_acceptor = ip::tcp::acceptor(m_ios, ep);
+                m_port=ep;
+                cout<<port_num<<endl;
+                break;
+            }
+            catch (...) {}
+        }
+    }
+    short PortNum(){
+        return m_port.port();
+    }
+    void Accept()
+    {
+        Service Serv;
+        ip::tcp::endpoint endp;
+        ip::tcp::socket sock(m_ios);
+        m_acceptor.accept(sock,endp);
+        Serv.HandleClient(sock);
+        std::cout<<"Connection accepted"<<std::endl;
+    }// accept & do handle client
+
+    void onAccept(const boost::system::error_code&ec,
+                  std::shared_ptr<ip::tcp::socket> sock){
+        if(ec){
+            std::cout << "OnAccept Error";
+            return;
+        }
+        std::cout << "accepted"<<std::endl;
+        this->InitAccept();
+        Service *service = new Service(sock);
+        //sock->close();
+        service->InitHandling();
+    }
+
+    void InitAccept()
+    {
+        ip::tcp::endpoint endp;
+        ip::tcp::socket sock(m_ios);
+        auto ptr = make_shared<ip::tcp::socket>(std::move(sock));
+
+        m_acceptor.async_accept(*ptr, endp, [=](const boost::system::error_code& ec){
+            this->onAccept(ec, ptr);
+        });
+    }
+private:
+    io_service& m_ios;
+    ip::tcp::acceptor m_acceptor;
+    ip::tcp::endpoint m_port;
+};
+
+class Server {
+public:
+    Server() {
+        acc.reset(new Acceptor(m_ios));
+    };
+    void Start()
+    {
+        auto f = [this](){
+            m_ios.run();
+        };
+        acc->InitAccept();
+        thread t(f);
+        m_thread.reset(new thread(move(t)));
+    }; // start thread with Run
+    void Stop()
+    {
+        m_thread->join();
+    }; // stop thread
+private:
+    std::unique_ptr<std::thread> m_thread;
+    io_service m_ios;
+    std::unique_ptr<Acceptor> acc;
+    short port;
+};
+
+
+
+
+int main() {
+
+    try{
+        Server S;
+        S.Start();
+        this_thread::sleep_for(chrono::seconds(50));
+        S.Stop();
+        std::cout << "Hello, World!" << std::endl;
+    }
+    catch(...){
+        cout << "arror!";
+    };
+    return 0;
+}
