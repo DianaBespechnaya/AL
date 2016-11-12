@@ -1,0 +1,204 @@
+history.h///////////////////
+
+
+#ifndef HISTORY_H
+#define HISTORY_H
+
+#include <QDialog>
+
+namespace Ui {
+class History;
+}
+
+class History : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit History(QWidget *parent = 0);
+    ~History();
+
+public slots:
+    void addNewEntry(QString&);
+    void FindButton();
+
+private:
+    Ui::History *ui;
+};
+
+#endif // HISTORY_H
+
+
+mainwindow.h///////////////
+
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <history.h>
+
+namespace Ui {
+class MainWindow;
+}
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+    History* hist;
+
+public:
+    explicit MainWindow(QWidget *parent = 0);
+
+    ~MainWindow();
+
+private slots:
+    void on_pushButton_clicked();
+    void calculate();
+    void on_checkBox_toggled(bool checked);
+    void AutoCalculate();
+
+    void on_pushButton_2_clicked();
+
+signals:
+    void ValueChanged(QString&);
+
+private:
+    Ui::MainWindow *ui;
+    bool mAutoCalc=false;
+    QString FormatResult(int);
+    void connectWithAutoCalculate();
+   // void CloseEvent(QCloseEvent * event) override;
+
+};
+
+#endif // MAINWINDOW_H
+
+
+
+history.cpp //////
+
+#include "history.h"
+#include "ui_history.h"
+
+History::History(QWidget *parent) :
+    QDialog(parent),
+    ui(new Ui::History)
+{
+    ui->setupUi(this);
+    connect(this, SIGNAL(FindButton()), lis);
+}
+
+History::~History()
+{
+    delete ui;
+}
+
+void History::addNewEntry(QString& operation) {
+    ui->listWidget->addItem(operation);
+}
+
+void History::FindButton() {
+    QString str;
+    str = ui->lineEdit->text();
+    if (str.isEmpty()) return;
+
+    for (auto i = ui->listWidget->currentRow() + 1; i < ui->listWidget->count(); ++i){
+     QString str1 =ui->listWidget->item(i)->text();
+     if (str1.contains(str)){
+         ui->listWidget->item(i)->setCurrentRow(i);
+  
+     }
+    }
+
+}
+
+
+
+mainwindow.cpp//////
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include <QMessageBox>
+
+MainWindow::MainWindow(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    connectWithAutoCalculate();
+    hist = new History;
+    connect(this, SIGNAL(ValueChanged(QString&)),hist, SLOT(addNewEntry(QString&)));
+}
+
+MainWindow::~MainWindow()
+{
+    hist->close();
+    delete hist;
+    delete ui;
+}
+
+void MainWindow::on_pushButton_clicked()
+{
+    calculate();
+}
+
+void MainWindow::on_checkBox_toggled(bool checked)
+{
+    mAutoCalc = checked;
+}
+
+void MainWindow::calculate() {
+    auto arg1 = ui->spinBox->value();
+    auto arg2 = ui->spinBox_2->value();
+    auto operation =ui->comboBox->currentText();
+    int result;
+
+
+    if (operation== "+")  result = arg1 + arg2;
+    if (operation== "-")  result = arg1 - arg2;
+    if (operation== "*")  result = arg1 * arg2;
+    if (operation== ":")  result = arg1 / arg2;
+
+    ui->lineEdit->setText(FormatResult(result));
+    QString histStr;
+    histStr.sprintf("%d %s %d = %d", arg1, operation.toStdString().data(), arg2, result);
+
+
+   emit ValueChanged(histStr);
+
+}
+
+QString MainWindow::FormatResult(int result) {
+    QString str;
+    if (ui->radioButton->isChecked()) return str.sprintf("%d", result);
+    if (ui->radioButton_2->isChecked()) return str.sprintf("%o", result);
+    if (ui->radioButton_3->isChecked()) return str.sprintf("%x", result);;
+    return str.number(result);
+}
+
+//void MainWindow::CloseEvent(QCloseEvent * event) {
+ //   hist->close();
+ //   QMainWindow::CloseEvent(event);
+//}
+
+void MainWindow::connectWithAutoCalculate() {
+
+    connect(ui->spinBox, SIGNAL(valueChanged(int)), this, SLOT(AutoCalculate()));
+    connect(ui->spinBox_2, SIGNAL(valueChanged(int)), this, SLOT(AutoCalculate()));
+    connect(ui->comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(AutoCalculate()));
+    connect(ui->radioButton, SIGNAL(clicked()), this, SLOT(AutoCalculate()));
+    connect(ui->radioButton_2, SIGNAL(clicked()), this, SLOT(AutoCalculate()));
+    connect(ui->radioButton_3, SIGNAL(clicked()), this, SLOT(AutoCalculate()));
+
+}
+
+void MainWindow::AutoCalculate() {
+    if (ui->checkBox->isChecked())
+    {
+        calculate();
+    }
+}
+
+void MainWindow::on_pushButton_2_clicked()
+{
+hist->show();
+}
